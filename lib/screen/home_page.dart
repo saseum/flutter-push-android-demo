@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_test_prj/device_token.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -18,43 +19,11 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   var messageTitle = "";
   var messageBody = "";
-  String _responseText = '';
-
-  Future<String> _getMyDeviceToken() async {
-    // 디바이스 토큰 요청
-    final token = await FirebaseMessaging.instance.getToken();
-
-    print("=== 내 Device Token : $token");
-
-    return token!;
-  }
-
-  Future<void> _postData() async {
-    String data = await _getMyDeviceToken();
-    const apiUrl = 'http://192.168.0.91:8080/endpoint.do';
-
-    final response = await http.post(
-      Uri.parse(apiUrl),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: jsonEncode(<String, String>{'data': data}),
-    );
-
-    setState(() {
-      if (response.statusCode == 200) {
-        print('=== response : ${response.body}');
-        _responseText = '=== Data sent successfully!';
-      } else {
-        _responseText = '=== Failed to send data';
-      }
-    });
-  }
-
   final GlobalKey webViewKey = GlobalKey();
 
   // 인앱웹뷰 컨트롤러
   InAppWebViewController? webViewController;
+
   InAppWebViewSettings options = InAppWebViewSettings(
     useShouldOverrideUrlLoading: true,
     // URL 로딩 제어
@@ -78,7 +47,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void initState() {
-    _postData();
 
     // local_notification 초기화
     FlutterLocalNotification.init();
@@ -165,15 +133,27 @@ class _HomePageState extends State<HomePage> {
                 InAppWebView(
                   key: webViewKey,
                   // 시작페이지
-                  initialUrlRequest:
-                      URLRequest(url: WebUri("http://192.168.0.91:8080")),
+                  initialUrlRequest: URLRequest(
+                      url: WebUri("http://192.168.0.91:8080")),
                   // 초기 설정
                   initialSettings: options,
                   // 당겨서 새로고침 컨트롤러 정의
                   pullToRefreshController: pullToRefreshController,
                   // 인앱웹뷰 생성 시 컨트롤러 정의
                   onWebViewCreated: (controller) {
-                    webViewController = controller;
+                    print('=== onWebViewCreated 실행!');
+
+                    controller.addJavaScriptHandler(
+                        handlerName: 'myHandler',
+                        callback: (args) {
+                          print('=== arguments is ==> $args');
+
+                          if(args[0] == 'Y') {
+                            print('=== postData 호출');
+                            postData();
+                          }
+
+                        });
                   },
                   // 페이지 로딩 시 수행 메서드 정의
                   onLoadStart: (controller, url) {
@@ -263,7 +243,7 @@ class _HomePageState extends State<HomePage> {
               ElevatedButton(
                 onPressed: () {
                   // backend 서버로 전송 및 안드로이드 앱 푸시 발송
-                  _postData();
+                  postData();
                 },
                 child: Icon(Icons.send),
               ),
